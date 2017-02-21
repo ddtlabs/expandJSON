@@ -21,11 +21,12 @@
 #
 ################################################################################
 
-# $Id: 98_expandJSON.pm 100 1970-01-101 00:00:00Z dev0 $
+# $Id: 98_expandJSON.pm 101 1970-01-101 00:00:00Z dev0 $
 
 # release change log:
 # ------------------------------------------------------------------------------
 # 1.0  initial release
+# 1.01 typo fixed
 
 package main;
 
@@ -261,7 +262,7 @@ sub expandJSON_isPmInstalled($$)
     <li>
       <code>&lt;regex&gt;</code><br>
       Regexp that must match your devices, readings and values that contain
-      the JSON strings. Regepx syntax is the same as used by notify.<br>
+      the JSON strings. Regexp syntax is the same as used by notify.<br>
       eg. <code>device:reading:.value</code></li><br>
 
     <li>

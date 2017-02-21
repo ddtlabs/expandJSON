@@ -27,7 +27,7 @@
     <li>
       <code>&lt;regex&gt;</code><br>
       Regexp that must match your devices, readings and values that contain
-      the JSON strings. Regepx syntax is the same as used by notify.<br>
+      the JSON strings. Regexp syntax is the same as used by notify.<br>
       eg. <code>device:reading:.value</code></li><br>
 
     <li>
