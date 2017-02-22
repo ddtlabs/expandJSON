@@ -57,7 +57,7 @@
       <u>Complete definitions:</u><br>
       <code>define ej1 expandJSON device:sourceReading:.{.*} targetReading</code><br>
         <code>define ej3 expandJSON .*\.SEN\..*:.*:.{.*}</code><br>
-        <code>define ej3 expandJSON sonoff_.*:sensor.*:.{.*} power.*|current|voltage</code><br>
+        <code>define ej3 expandJSON sonoff_.*:sensor.*:.{.*} (power.*|current|voltage)</code><br>
     </li><br>
   </ul>
 
