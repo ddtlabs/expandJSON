@@ -40,29 +40,24 @@
       Examples:<br>
       <br>
       <u>Source reading:</u><br>
-      <code>
-        device:reading:.{.*}<br>
-        .*WifiIOT.*:sensor.*:.{.*}<br>
-        sonoff_.*:.*:.{.*}<br>
-        dev.*:(sensor1|sensor2|teleme.*):.{.*}<br>
-        (dev.*|[Dd]evice.*):json:.{.*}<br>
-        (devX:jsonX:.{.*}|devY.*:jsonY:.{.*Wifi.*{.*SSID.*}.*})
-      </code><br>
+        <code>device:reading:.{.*}</code><br>
+        <code>.*WifiIOT.*:sensor.*:.{.*}</code><br>
+        <code>sonoff_.*:.*:.{.*}</code><br>
+        <code>dev.*:(sensor1|sensor2|teleme.*):.{.*}</code><br>
+        <code>(dev.*|[Dd]evice.*):json:.{.*}</code><br>
+        <code>(devX:jsonX:.{.*}|devY.*:jsonY:.{.*Wifi.*{.*SSID.*}.*})</code><br>
       <br>
 
       <u>Target reading:</u><br>
-      <code>
-        .*power.*<br>
-        (Current|Voltage|Wifi.*)
+        <code>.*power.*</code><br>
+        <code>(Current|Voltage|Wifi.*)</code>
       </code><br>
       <br>
 
       <u>Complete definitions:</u><br>
-      <code>
-        define ej1 expandJSON device:sourceReading:.{.*} targetReading<br>
-        define ej3 expandJSON .*\.SEN\..*:.*:.{.*}<br>
-        define ej3 expandJSON sonoff_.*:sensor.*:.{.*} power.*|current|voltage<br>
-      </code><br>
+      <code>define ej1 expandJSON device:sourceReading:.{.*} targetReading</code><br>
+        <code>define ej3 expandJSON .*\.SEN\..*:.*:.{.*}</code><br>
+        <code>define ej3 expandJSON sonoff_.*:sensor.*:.{.*} power.*|current|voltage</code><br>
     </li><br>
   </ul>
 
