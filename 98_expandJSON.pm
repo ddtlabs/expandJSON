@@ -21,13 +21,14 @@
 #
 ################################################################################
 
-# $Id: 98_expandJSON.pm 102 1970-01-101 00:00:00Z dev0 $
+# $Id: 98_expandJSON.pm 103 1970-01-101 00:00:00Z dev0 $
 
 # release change log:
 # ------------------------------------------------------------------------------
 # 1.0  initial release
 # 1.01 typo fixed
 # 1.02 added traget reading regexp
+# 1.03 fixed command ref
 
 package main;
 
@@ -286,7 +287,7 @@ sub expandJSON_isPmInstalled($$)
       <code>
         define ej1 expandJSON device:sourceReading:.{.*} targetReading<br>
         define ej3 expandJSON .*\.SEN\..*:.*:.{.*}<br>
-        define ej3 expandJSON sonoff_.*:sensor.*:.{.*} power.*|current|voltage<br>
+        define ej3 expandJSON sonoff_.*:sensor.*:.{.*} (power.*|current|voltage)<br>
       </code><br>
     </li><br>
   </ul>
