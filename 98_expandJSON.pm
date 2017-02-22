@@ -21,12 +21,13 @@
 #
 ################################################################################
 
-# $Id: 98_expandJSON.pm 101 1970-01-101 00:00:00Z dev0 $
+# $Id: 98_expandJSON.pm 102 1970-01-101 00:00:00Z dev0 $
 
 # release change log:
 # ------------------------------------------------------------------------------
 # 1.0  initial release
 # 1.01 typo fixed
+# 1.02 added traget reading regexp
 
 package main;
 
@@ -34,7 +35,7 @@ use strict;
 use warnings;
 use POSIX;
 
-sub expandJSON_update($$$;$$);
+sub expandJSON_update($$$$;$$);
 
 sub expandJSON_Initialize($$) {
   my ($hash) = @_;
@@ -52,20 +53,33 @@ sub expandJSON_Initialize($$) {
 sub expandJSON_Define(@) {
   my ($hash, $def) = @_;
   my @a = split("[ \t][ \t]*", $def);
-  my $usg = "\nUse 'define <name> expandJSON <regexp>";
-  return "Wrong syntax: $usg" if(int(@a) != 3);
+  my $usg = "\nUse 'define <name> expandJSON <event regexp> <target reading regexp";
+  return "Wrong syntax: $usg" if(int(@a) < 3);
   return "ERROR: Perl module JSON is not installed" if (expandJSON_isPmInstalled($hash,"JSON"));
 
   my $name = $a[0];
   my $type = $a[1];
-  my $re   = $a[2];
 
+  # source regexp
+  my $re   = $a[2];
   return "Mad regexp: starting with *" if($re =~ m/^\*/);
   eval { "test" =~ m/^$re$/ };
   return "Mad regexp $re: $@" if($@);
 
-  $hash->{REGEXP} = $re;
+  $hash->{s_regexp} = $re;
   notifyRegexpChanged($hash, $re);
+
+  # dest regexp
+  if (defined $a[3]) {
+    $re  = $a[3];
+    return "Mad regexp: starting with *" if($re =~ m/^\*/);
+    eval { "test" =~ m/^$re$/ };
+    return "Mad regexp $re: $@" if($@);
+    $hash->{t_regexp} = $re;
+  }
+  else {
+    $hash->{t_regexp} = ".*";
+  }
 
   readingsSingleUpdate($hash, "state", "active", 0);
   return undef;
@@ -105,7 +119,7 @@ sub expandJSON_Notify($$) {
   return "" if(IsDisabled($name));
 
   my $devName = $dhash->{NAME};
-  my $re = $hash->{REGEXP};
+  my $re = $hash->{s_regexp};
   my $events = deviceEvents($dhash, AttrVal($name, "addStateEvent", 0));
   return if(!$events);
 
@@ -150,61 +164,34 @@ sub expandJSON_do($) {
 
   my $sPrefix = $hash->{addReadingsPrefix} ? $dreading."_" : "";
   readingsBeginUpdate($dhash);
-  expandJSON_update($dhash,$sPrefix,$h);
+  expandJSON_update($hash,$dhash,$sPrefix,$h);
   readingsEndUpdate($dhash, 1);
 
   return undef;
 }
 
 
-sub expandJSON_update($$$;$$) {
-  # thanx to bgewehr for this recursive snippet
+sub expandJSON_update($$$$;$$) {
+  # thanx to bgewehr for the root position of this recursive snippet
   # https://github.com/bgewehr/fhem
-  my ($hash,$sPrefix,$ref,$prefix,$suffix) = @_;
+  my ($hash,$dhash,$sPrefix,$ref,$prefix,$suffix) = @_;
   $prefix = "" if( !$prefix );
   $suffix = "" if( !$suffix );
   $suffix = "_$suffix" if( $suffix );
 
   if( ref( $ref ) eq "ARRAY" ) {
     while( my ($key,$value) = each @{ $ref } ) {
-      expandJSON_update($hash,$sPrefix,$value,$prefix.sprintf("%02i",$key+1)."_");
+      expandJSON_update($hash,$dhash,$sPrefix,$value,$prefix.sprintf("%02i",$key+1)."_");
     }
   }
   elsif( ref( $ref ) eq "HASH" ) {
     while( my ($key,$value) = each %{ $ref } ) {
       if( ref( $value ) ) {
-        expandJSON_update($hash,$sPrefix,$value,$prefix.$key.$suffix."_");
+        expandJSON_update($hash,$dhash,$sPrefix,$value,$prefix.$key.$suffix."_");
       }
       else {
         (my $reading = $sPrefix.$prefix.$key.$suffix) =~ s/[^A-Za-z\d_\.\-\/]/_/g;
-        readingsBulkUpdate($hash, $reading, $value);
-      }
-    }
-  }
-}
-
-
-sub expandJSON_update_old($$;$$) {
-  # thanx to bgewehr for this recursive snippet
-  # https://github.com/bgewehr/fhem
-  my ($hash,$ref,$prefix,$suffix) = @_;
-  $prefix = "" if( !$prefix );
-  $suffix = "" if( !$suffix );
-  $suffix = "_$suffix" if( $suffix );
-
-  if( ref( $ref ) eq "ARRAY" ) {
-    while( my ($key,$value) = each @{ $ref } ) {
-      expandJSON_update($hash,$value,$prefix.sprintf("%02i",$key+1)."_");
-    }
-  }
-  elsif( ref( $ref ) eq "HASH" ) {
-    while( my ($key,$value) = each %{ $ref } ) {
-      if( ref( $value ) ) {
-        expandJSON_update($hash,$value,$prefix.$key.$suffix."_");
-      }
-      else {
-        (my $reading = $prefix.$key.$suffix) =~ s/[^A-Za-z\d_\.\-\/]/_/g;
-        readingsBulkUpdate($hash, $reading, $value);
+        readingsBulkUpdate($dhash, $reading, $value) if $reading =~ m/^$hash->{t_regexp}$/;
       }
     }
   }
@@ -253,28 +240,55 @@ sub expandJSON_isPmInstalled($$)
   <b>Define</b><br><br>
   
   <ul>
-    <code>define &lt;name&gt; expandJSON &lt;regex&gt;</code><br><br>
+    <code>define &lt;name&gt; expandJSON &lt;source_regex&gt; [&lt;target_regex&gt;]</code><br><br>
 
     <li>
-      <code>&lt;name&gt;</code><br>
+      <a name="">&lt;name&gt;</a><br>
       A name of your choice.</li><br>
 
     <li>
-      <code>&lt;regex&gt;</code><br>
+      <a name="">&lt;source_regex&gt;</a><br>
       Regexp that must match your devices, readings and values that contain
-      the JSON strings. Regexp syntax is the same as used by notify.<br>
-      eg. <code>device:reading:.value</code></li><br>
+      the JSON strings. Regexp syntax is the same as used by notify and must not
+      contain a space.<br>
+      </li><br>
+      
+    <li>
+      <a name="">&lt;target_regex&gt;</a><br>
+      Optional: This regexp is used to determine whether the target reading is
+      converted or not at all. If not set then all readings will be used. If set then only
+      matching readings will be used. Regexp syntax is the same as used by
+      notify and must not contain a space.<br>
+      </li><br>
 
     <li>
       Examples:<br>
-      <code>define ej1 expandJSON device:reading:.{.*}</code><br>
-      <code>define ej2 expandJSON sonoff_123:sensor.*:.*</code><br>
-      <code>define ej3 expandJSON sonoff_.*:.*:.{.*}</code><br>
-      <code>define ej4 expandJSON .*:sensor:.*</code><br>
-      <code>define ej5 expandJSON .*:(sensor1|sensor2|teleme.*):.*</code><br>
-      <code>define ej6 expandJSON (dev1|device.*|[Dd]evice.*):reading:.*</code><br>
-      <code>define ej7 expandJSON (dev0\d+|[Dd]evice.*):(sen1|sen2|telem.*):.*</code><br>
-      <code>define ej8 expandJSON d.*:jsonX:.{.*}|y.*:jsonY:.{.*Wifi.*{.*SSID.*}.*}</code></li><br>
+      <br>
+      <u>Source reading:</u><br>
+      <code>
+        device:reading:.{.*}<br>
+        .*WifiIOT.*:sensor.*:.{.*}<br>
+        sonoff_.*:.*:.{.*}<br>
+        dev.*:(sensor1|sensor2|teleme.*):.{.*}<br>
+        (dev.*|[Dd]evice.*):json:.{.*}<br>
+        (devX:jsonX:.{.*}|devY.*:jsonY:.{.*Wifi.*{.*SSID.*}.*})
+      </code><br>
+      <br>
+
+      <u>Target reading:</u><br>
+      <code>
+        .*power.*<br>
+        (Current|Voltage|Wifi.*)
+      </code><br>
+      <br>
+
+      <u>Complete definitions:</u><br>
+      <code>
+        define ej1 expandJSON device:sourceReading:.{.*} targetReading<br>
+        define ej3 expandJSON .*\.SEN\..*:.*:.{.*}<br>
+        define ej3 expandJSON sonoff_.*:sensor.*:.{.*} power.*|current|voltage<br>
+      </code><br>
+    </li><br>
   </ul>
 
   <a name="expandJSONset"></a>

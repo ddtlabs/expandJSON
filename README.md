@@ -1,6 +1,4 @@
 
-<div id="devSpecHelp">
-<a name="expandJSON"></a>
 <h3>expandJSON</h3>
 
 <ul>
@@ -14,60 +12,80 @@
     </li>
   </ul><br>
   
-  <a name="expandJSONdefine"></a>
   <b>Define</b><br><br>
   
   <ul>
-    <code>define &lt;name&gt; expandJSON &lt;regex&gt;</code><br><br>
+    <code>define &lt;name&gt; expandJSON &lt;source_regex&gt; [&lt;target_regex&gt;]</code><br><br>
 
     <li>
-      <code>&lt;name&gt;</code><br>
+      <b>&lt;name&gt;</b><br>
       A name of your choice.</li><br>
 
     <li>
-      <code>&lt;regex&gt;</code><br>
+      <b>&lt;source_regex&gt;</b><br>
       Regexp that must match your devices, readings and values that contain
-      the JSON strings. Regexp syntax is the same as used by notify.<br>
-      eg. <code>device:reading:.value</code></li><br>
+      the JSON strings. Regexp syntax is the same as used by notify and must not
+      contain a space.<br>
+      </li><br>
+      
+    <li>
+      <b>&lt;target_regex&gt;</b><br>
+      Optional: This regexp is used to determine whether the target reading is
+      converted or not at all. If not set then all readings will be used. If set then only
+      matching readings will be used. Regexp syntax is the same as used by
+      notify and must not contain a space.<br>
+      </li><br>
 
     <li>
       Examples:<br>
-      <code>define ej1 expandJSON device:reading:.{.*}</code><br>
-      <code>define ej2 expandJSON sonoff_123:sensor.*:.*</code><br>
-      <code>define ej3 expandJSON sonoff_.*:.*:.{.*}</code><br>
-      <code>define ej4 expandJSON .*:sensor:.*</code><br>
-      <code>define ej5 expandJSON .*:(sensor1|sensor2|teleme.*):.*</code><br>
-      <code>define ej6 expandJSON (dev1|device.*|[Dd]evice.*):reading:.*</code><br>
-      <code>define ej7 expandJSON (dev0\d+|[Dd]evice.*):(sen1|sen2|telem.*):.*</code><br>
-      <code>define ej8 expandJSON d.*:jsonX:.{.*}|y.*:jsonY:.{.*Wifi.*{.*SSID.*}.*}</code></li><br>
+      <br>
+      <u>Source reading:</u><br>
+      <code>
+        device:reading:.{.*}<br>
+        .*WifiIOT.*:sensor.*:.{.*}<br>
+        sonoff_.*:.*:.{.*}<br>
+        dev.*:(sensor1|sensor2|teleme.*):.{.*}<br>
+        (dev.*|[Dd]evice.*):json:.{.*}<br>
+        (devX:jsonX:.{.*}|devY.*:jsonY:.{.*Wifi.*{.*SSID.*}.*})
+      </code><br>
+      <br>
+
+      <u>Target reading:</u><br>
+      <code>
+        .*power.*<br>
+        (Current|Voltage|Wifi.*)
+      </code><br>
+      <br>
+
+      <u>Complete definitions:</u><br>
+      <code>
+        define ej1 expandJSON device:sourceReading:.{.*} targetReading<br>
+        define ej3 expandJSON .*\.SEN\..*:.*:.{.*}<br>
+        define ej3 expandJSON sonoff_.*:sensor.*:.{.*} power.*|current|voltage<br>
+      </code><br>
+    </li><br>
   </ul>
 
-  <a name="expandJSONset"></a>
   <b>Set</b><br><br>
   <ul>
     N/A<br><br>
   </ul>
   
-  <a name="expandJSONget"></a>
   <b>Get</b><br><br>
   <ul>
     N/A<br><br>
   </ul>
   
-  <a name="expandJSONattr"></a>
   <b>Attributes</b><br><br>
   <ul>
-    <li><a name="">addReadingsPrefix</a><br>
+    <li><b>addReadingsPrefix</b><br>
       Add source reading as prefix to new generated readings. Useful if you have
       more than one reading with a JSON string that should be converted.
     </li><br>
 
-    <li><a target="_blank" href="/fhem/docs/commandref.html#disable">disable</a></li>
-    <li><a target="_blank" href="/fhem/docs/commandref.html#disabledForIntervals">disabledForIntervals</a></li>
-    <li><a target="_blank" href="/fhem/docs/commandref.html#addStateEvent">addStateEvent</a></li>
-    <li><a target="_blank" href="/fhem/docs/commandref.html#showtime">showtime</a></li><br>
+    <li><b>disable</b></li>
+    <li><b>disabledForIntervals</b></li>
+    <li><b>addStateEvent</b></li>
+    <li><b>showtime</b></li><br>
   </ul>
 </ul>
-
-
-</div>
