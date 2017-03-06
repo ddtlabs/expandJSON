@@ -89,7 +89,7 @@
       event-on-change-reading in target devices.
     </li><br>
 
-    <li><b">disabledForIntervals</b></li>
+    <li><b>disabledForIntervals</b></li>
     <li><b>addStateEvent</b></li>
     <li><b>showtime</b></li><br>
   </ul>
