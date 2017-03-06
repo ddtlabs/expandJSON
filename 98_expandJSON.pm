@@ -31,6 +31,7 @@
 # 1.04 minor internal changes
 #      added attr do_not_notify
 #      fixed bug in $event split
+# 1.05 removed debug log
 
 my $module_version    = 1.04;
 
@@ -112,7 +113,8 @@ sub expandJSON_Attr($$) {
   }
   
   if ($ret) {
-    my $msg = "$type: attr $name $aName: value must be: ";
+    my $v = defined $aVal ? $aVal : "";
+    my $msg = "$type: attr $name $aName $v: value must be: ";
     Log3 $name, 2, $msg.$ret;
     return $msg.$ret;
   }
@@ -161,7 +163,6 @@ sub expandJSON_do($$$$) {
   my ($name,$type) = ($hash->{NAME},$hash->{TYPE});
   my $dhash = $defs{$dname};
   my $h;
-Log 1, "input: $dvalue";
   eval { $h = decode_json($dvalue); 1; };
   if ( $@ ) {
     Log3 $name, 2, "$type $name: Mad JSON: $dname $dreading: $dvalue";
