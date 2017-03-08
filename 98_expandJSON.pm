@@ -32,8 +32,22 @@
 #      added attr do_not_notify
 #      fixed bug in $event split
 # 1.05 removed debug log
+# 1.06 fixed state handling
+#      added multi line JSON handling (pretty, indent, spaces)
+#      add logging (verbose 5)
 
-my $module_version    = 1.04;
+#test defines
+# defmod ej dej expandJSON d.*:.*:.{.*}      #all devices starting w/ d
+# defmod ej dej expandJSON d.*:{.*}          #state wo/ attr addStateEvent
+# defmod ej dej expandJSON dej:xxx:.{.*}     #
+
+#test strings
+# { fhem('setreading dej xxx { '.chr(10).chr(9).'"Timestamp" : "2017-03-06 05:26:57" '.chr(10).'} ') }
+# setreading dej xxx { "Timestamp" : "2017-03-06 05:26:57", "Temperature" : { "Value" : 26.600, "Fractional" : 26, "Decimal" : 600 }, "Humidity" : { "Value" : 37.300, "Fractional" : 37, "Decimal" : 300 }, "Light" : { "Value" : 1024 } }
+# setreading dej yyy {"Time":"2017-02-08T20:13:31", "Uptime":0, "POWER":"ON", "Wifi":{"AP":1, "SSID":"xxxxxx", "RSSI":96}}
+# set dej { "Time" : "2017-02-08T20:13:44","Time2":"2017-02-08T20:13:44"}
+
+my $module_version = 1.06;
 
 package main;
 
@@ -71,9 +85,9 @@ sub expandJSON_Define(@) {
 
   # source regexp
   my $re   = $a[2];
-  return "Mad regexp: starting with *" if($re =~ m/^\*/);
+  return "Bad regexp: starting with *" if($re =~ m/^\*/);
   eval { "test" =~ m/^$re$/ };
-  return "Mad regexp $re: $@" if($@);
+  return "Bad regexp $re: $@" if($@);
 
   $hash->{s_regexp} = $re;
   notifyRegexpChanged($hash, $re);
@@ -81,9 +95,9 @@ sub expandJSON_Define(@) {
   # dest regexp
   if (defined $a[3]) {
     $re  = $a[3];
-    return "Mad regexp: starting with *" if($re =~ m/^\*/);
+    return "Bad regexp: starting with *" if($re =~ m/^\*/);
     eval { "test" =~ m/^$re$/ };
-    return "Mad regexp $re: $@" if($@);
+    return "Bad regexp $re: $@" if($@);
     $hash->{t_regexp} = $re;
   }
   else {
@@ -91,7 +105,9 @@ sub expandJSON_Define(@) {
   }
 
   readingsSingleUpdate($hash, "state", "active", 0);
-  $hash->{VERSION} = $module_version;
+  $hash->{version} = $module_version;
+  $hash->{cnt_found} = 0;
+  $hash->{cnt_loop} = 0;
 
   return undef;
 }
@@ -106,10 +122,13 @@ sub expandJSON_Attr($$) {
   if ($cmd eq "set" && !defined $aVal) {
     $ret = "not empty"
   }
-  elsif ($aName =~ /^(addReadingsPrefix|do_not_notify)$/) {
+  elsif ($aName =~ /^addReadingsPrefix$/) {
     $cmd eq "set" 
-      ? $aVal =~ m/^(0|1)$/ ? ($hash->{$aName} = $aVal) : ($ret = "0,1") 
-      : delete $hash->{$aName}
+      ? $aVal =~ m/^[01]$/ ? ($hash->{helper}{$aName} = $aVal) : ($ret = "0|1") 
+      : delete $hash->{helper}{$aName}
+  }
+  elsif ($aName =~ /^do_not_notify$/) {
+    $ret = "0|1" if  $cmd eq "set" && $aVal !~ m/^[01]$/;
   }
   
   if ($ret) {
@@ -133,19 +152,30 @@ sub expandJSON_Notify($$) {
   my $devName = $dhash->{NAME};
   my $re = $hash->{s_regexp};
   my $events = deviceEvents($dhash, AttrVal($name, "addStateEvent", 0));
-  return if(!$events);
+  return if( !grep { m/{.*}\s*$/s } @{ $events } );
 
   for (my $i = 0; $i < int(@{$events}); $i++) {
     my $event = $events->[$i];
     $event = "" if(!defined($event));
-    my $found = ($devName =~ m/^$re$/ || "$devName:$event" =~ m/^$re$/);
+    $hash->{cnt_loop}++;
+
+    my $found = ($devName =~ m/^$re$/ || "$devName:$event" =~ m/^$re$/s);
     if ($found) {
-      my ($reading,$value) = split(": ",$event,2);
-      readingsSingleUpdate($hash, "state", 
-        AttrVal($name,'showtime',1) 
-          ? $dhash->{NTFY_TRIGGERTIME} 
-          : 'active'
-        , 1);
+      Log3 $name, 5, "$type $name: Found $devName:$event";
+      $hash->{cnt_found}++;
+
+      my ($reading,$value) = $event =~ m/^\s*{.*}\s*$/s 
+        ? ("state", $event)
+        : split(": ", $event, 2);
+      return if $value !~ m/^\s*{.*}\s*$/s; # eg. state with an invalid json
+
+      readingsSingleUpdate($hash, "state", AttrVal($name,'showtime',1) 
+        ? $dhash->{NTFY_TRIGGERTIME} 
+        : 'active', 1);
+
+      Log3 $name, 5, "$type $name: Yield expandJSON_do: $hash | $devName "
+        . "| $reading | $value";
+
       InternalTimer(
         gettimeofday(), 
         sub(){ expandJSON_do($hash,$devName,$reading,$value) },
@@ -165,12 +195,12 @@ sub expandJSON_do($$$$) {
   my $h;
   eval { $h = decode_json($dvalue); 1; };
   if ( $@ ) {
-    Log3 $name, 2, "$type $name: Mad JSON: $dname $dreading: $dvalue";
+    Log3 $name, 2, "$type $name: Bad JSON: $dname $dreading: $dvalue";
     Log3 $name, 2, "$type $name: $@";
     return undef;
   }
 
-  my $sPrefix = $hash->{addReadingsPrefix} ? $dreading."_" : "";
+  my $sPrefix = $hash->{helper}{addReadingsPrefix} ? $dreading."_" : "";
   readingsBeginUpdate($dhash);
   expandJSON_update($hash,$dhash,$sPrefix,$h);
   readingsEndUpdate($dhash, AttrVal($name,"do_not_notify",0) ? 0 : 1);
@@ -262,7 +292,7 @@ sub expandJSON_isPmInstalled($$)
       <a name="">&lt;source_regex&gt;</a><br>
       Regexp that must match your devices, readings and values that contain
       the JSON strings. Regexp syntax is the same as used by notify and must not
-      contain a space.<br>
+      contain spaces.<br>
       </li><br>
       
     <li>
@@ -270,7 +300,7 @@ sub expandJSON_isPmInstalled($$)
       Optional: This regexp is used to determine whether the target reading is
       converted or not at all. If not set then all readings will be used. If set
       then only matching readings will be used. Regexp syntax is the same as
-      used by notify and must not contain a space.<br>
+      used by notify and must not contain spaces.<br>
       </li><br>
 
     <li>
@@ -278,29 +308,28 @@ sub expandJSON_isPmInstalled($$)
       <br>
       <u>Source reading:</u><br>
       <code>
+        device:{.*} #state without attribute addStateEvent<br>
+        device:state:.{.*} #state with attribute addStateEvent<br>
         device:reading:.{.*}<br>
-        .*WifiIOT.*:sensor.*:.{.*}<br>
-        sonoff_.*:.*:.{.*}<br>
-        dev.*:(sensor1|sensor2|teleme.*):.{.*}<br>
-        (dev.*|[Dd]evice.*):json:.{.*}<br>
-        (devX:jsonX:.{.*}|devY.*:jsonY:.{.*Wifi.*{.*SSID.*}.*})
+        Sonoff.*:ENERGY.*:.{.*}<br>
+        .*wifiIOT.*:.*sensor.*:.{.*}<br>
+        (?i)dev.*:(sensor1|sensor2|teleme.*):.{.*}<br>
+        (devX:{.*}|devY.*:jsonY:.{.*Wifi.*{.*SSID.*}.*})
       </code><br>
       <br>
 
       <u>Target reading:</u><br>
-      <code>
-        .*power.*<br>
-        (Current|Voltage|Wifi.*)
-      </code><br>
-      <br>
+      <code>.*power.*</code><br>
+      <code>(Power|Current|Voltage|.*day)</code><br><br>
 
       <u>Complete definitions:</u><br>
-      <code>
-        define ej1 expandJSON device:sourceReading:.{.*} targetReading<br>
-        define ej3 expandJSON .*\.SEN\..*:.*:.{.*}<br>
-        define ej3 expandJSON sonoff_.*:sensor.*:.{.*} (power.*|current|voltage)
-        <br>
+      <code>define ej1 expandJSON device:sourceReading:.{.*} targetReading
       </code><br>
+      <code>define ej2 expandJSON Sonoff.*:ENERGY.*:.{.*} (Power|.*day)
+      </code><br>
+      <code>define ej3 expandJSON (?i).*_sensordev_.*:.*:.{.*}
+      </code><br><br>
+   
     </li><br>
   </ul>
 
