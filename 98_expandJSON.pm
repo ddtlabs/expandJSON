@@ -35,6 +35,7 @@
 # 1.06 fixed state handling
 #      added multi line JSON handling (pretty, indent, spaces)
 #      add logging (verbose 5)
+# 1.07 some notifyFN optimizations 
 
 #test defines
 # defmod ej dej expandJSON d.*:.*:.{.*}      #all devices starting w/ d
@@ -47,7 +48,7 @@
 # setreading dej yyy {"Time":"2017-02-08T20:13:31", "Uptime":0, "POWER":"ON", "Wifi":{"AP":1, "SSID":"xxxxxx", "RSSI":96}}
 # set dej { "Time" : "2017-02-08T20:13:44","Time2":"2017-02-08T20:13:44"}
 
-my $module_version = 1.06;
+my $module_version = 1.07;
 
 package main;
 
@@ -55,7 +56,7 @@ use strict;
 use warnings;
 use POSIX;
 
-sub expandJSON_update($$$$;$$);  # Forum #66761
+sub expandJSON_expand($$$$;$$);  # Forum #66761
 
 sub expandJSON_Initialize($$) {
   my ($hash) = @_;
@@ -90,7 +91,7 @@ sub expandJSON_Define(@) {
   return "Bad regexp $re: $@" if($@);
 
   $hash->{s_regexp} = $re;
-  notifyRegexpChanged($hash, $re);
+  InternalTimer(gettimeofday(), sub(){notifyRegexpChanged($hash, $re);}, $hash);
 
   # dest regexp
   if (defined $a[3]) {
@@ -106,8 +107,6 @@ sub expandJSON_Define(@) {
 
   readingsSingleUpdate($hash, "state", "active", 0);
   $hash->{version} = $module_version;
-  $hash->{cnt_found} = 0;
-  $hash->{cnt_loop} = 0;
 
   return undef;
 }
@@ -144,41 +143,42 @@ sub expandJSON_Attr($$) {
 
 sub expandJSON_Notify($$) {
   my ($hash, $dhash) = @_;
-
   my $name = $hash->{NAME};
-  my $type = $hash->{TYPE};
   return "" if(IsDisabled($name));
 
-  my $devName = $dhash->{NAME};
-  my $re = $hash->{s_regexp};
   my $events = deviceEvents($dhash, AttrVal($name, "addStateEvent", 0));
-  return if( !grep { m/{.*}\s*$/s } @{ $events } );
+  return if( !grep { m/{.*}\s*$/s } @{ $events } ); #there is no JSON content
 
   for (my $i = 0; $i < int(@{$events}); $i++) {
     my $event = $events->[$i];
     $event = "" if(!defined($event));
-    $hash->{cnt_loop}++;
 
+    my $re = $hash->{s_regexp};
+    my $devName = $dhash->{NAME};
     my $found = ($devName =~ m/^$re$/ || "$devName:$event" =~ m/^$re$/s);
     if ($found) {
+      my $type = $hash->{TYPE};
       Log3 $name, 5, "$type $name: Found $devName:$event";
-      $hash->{cnt_found}++;
 
       my ($reading,$value) = $event =~ m/^\s*{.*}\s*$/s 
         ? ("state", $event)
         : split(": ", $event, 2);
-      return if $value !~ m/^\s*{.*}\s*$/s; # eg. state with an invalid json
 
-      readingsSingleUpdate($hash, "state", AttrVal($name,'showtime',1) 
+      $hash->{STATE} = AttrVal($name,'showtime',1) 
         ? $dhash->{NTFY_TRIGGERTIME} 
-        : 'active', 1);
+        : 'active';
 
-      Log3 $name, 5, "$type $name: Yield expandJSON_do: $hash | $devName "
-        . "| $reading | $value";
+      if ($value !~ m/^\s*{.*}\s*$/s) { # eg. state with an invalid json
+        Log3 $name, 5 "$type $name: Invalid JSON: $value";
+        return;
+      }
+
+      Log3 $name, 5, "$type $name: Yield decode: $hash | $devName | $reading "
+                   . "| $value";
 
       InternalTimer(
         gettimeofday(), 
-        sub(){ expandJSON_do($hash,$devName,$reading,$value) },
+        sub(){ expandJSON_decode($hash,$devName,$reading,$value) },
         $hash);
     }
   }
@@ -187,7 +187,7 @@ sub expandJSON_Notify($$) {
 }
 
 
-sub expandJSON_do($$$$) {
+sub expandJSON_decode($$$$) {
   my ($p) = @_;
   my ($hash,$dname,$dreading,$dvalue) = @_;
   my ($name,$type) = ($hash->{NAME},$hash->{TYPE});
@@ -202,14 +202,14 @@ sub expandJSON_do($$$$) {
 
   my $sPrefix = $hash->{helper}{addReadingsPrefix} ? $dreading."_" : "";
   readingsBeginUpdate($dhash);
-  expandJSON_update($hash,$dhash,$sPrefix,$h);
+  expandJSON_expand($hash,$dhash,$sPrefix,$h);
   readingsEndUpdate($dhash, AttrVal($name,"do_not_notify",0) ? 0 : 1);
 
   return undef;
 }
 
 
-sub expandJSON_update($$$$;$$) {
+sub expandJSON_expand($$$$;$$) {
   # thanx to bgewehr for the root position of this recursive snippet
   # https://github.com/bgewehr/fhem
   my ($hash,$dhash,$sPrefix,$ref,$prefix,$suffix) = @_;
@@ -219,14 +219,14 @@ sub expandJSON_update($$$$;$$) {
 
   if( ref( $ref ) eq "ARRAY" ) {
     while( my ($key,$value) = each @{ $ref } ) {
-      expandJSON_update($hash,$dhash,$sPrefix,$value,
+      expandJSON_expand($hash,$dhash,$sPrefix,$value,
                         $prefix.sprintf("%02i",$key+1)."_");
     }
   }
   elsif( ref( $ref ) eq "HASH" ) {
     while( my ($key,$value) = each %{ $ref } ) {
       if( ref( $value ) ) {
-        expandJSON_update($hash,$dhash,$sPrefix,$value,$prefix.$key.$suffix."_");
+        expandJSON_expand($hash,$dhash,$sPrefix,$value,$prefix.$key.$suffix."_");
       }
       else {
         # replace illegal characters in reading names
