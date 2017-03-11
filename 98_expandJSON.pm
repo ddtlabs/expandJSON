@@ -36,6 +36,7 @@
 #      added multi line JSON handling (pretty, indent, spaces)
 #      add logging (verbose 5)
 # 1.07 some notifyFN optimizations 
+# 1.08 fixed type in line 172
 
 #test defines
 # defmod ej dej expandJSON d.*:.*:.{.*}      #all devices starting w/ d
@@ -48,7 +49,7 @@
 # setreading dej yyy {"Time":"2017-02-08T20:13:31", "Uptime":0, "POWER":"ON", "Wifi":{"AP":1, "SSID":"xxxxxx", "RSSI":96}}
 # set dej { "Time" : "2017-02-08T20:13:44","Time2":"2017-02-08T20:13:44"}
 
-my $module_version = 1.07;
+my $module_version = 1.08;
 
 package main;
 
@@ -169,7 +170,7 @@ sub expandJSON_Notify($$) {
         : 'active';
 
       if ($value !~ m/^\s*{.*}\s*$/s) { # eg. state with an invalid json
-        Log3 $name, 5 "$type $name: Invalid JSON: $value";
+        Log3 $name, 5, "$type $name: Invalid JSON: $value";
         return;
       }
 
