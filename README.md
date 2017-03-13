@@ -1,5 +1,5 @@
 
-<h3>expandJSON v1.08</h3>
+<h3>expandJSON v1.09</h3>
 
 <ul>
   <p>Expand a JSON string from a reading into individual readings</p>
@@ -91,6 +91,5 @@
 
     <li><b>disabledForIntervals</b></li>
     <li><b>addStateEvent</b></li>
-    <li><b>showtime</b></li><br>
   </ul>
 </ul>

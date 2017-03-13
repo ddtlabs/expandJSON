@@ -37,6 +37,7 @@
 #      add logging (verbose 5)
 # 1.07 some notifyFN optimizations 
 # 1.08 fixed type in line 172
+# 1.09 removed attr showtime (always on)
 
 #test defines
 # defmod ej dej expandJSON d.*:.*:.{.*}      #all devices starting w/ d
@@ -49,7 +50,7 @@
 # setreading dej yyy {"Time":"2017-02-08T20:13:31", "Uptime":0, "POWER":"ON", "Wifi":{"AP":1, "SSID":"xxxxxx", "RSSI":96}}
 # set dej { "Time" : "2017-02-08T20:13:44","Time2":"2017-02-08T20:13:44"}
 
-my $module_version = 1.08;
+my $module_version = 1.09;
 
 package main;
 
@@ -68,8 +69,7 @@ sub expandJSON_Initialize($$) {
                     . "addReadingsPrefix:1,0 "
                     . "disable:1,0 "
                     . "disabledForIntervals "
-                    . "do_not_notify "
-                    . "showtime:1,0";
+                    . "do_not_notify:1,0";
 }
 
 
@@ -106,7 +106,8 @@ sub expandJSON_Define(@) {
     $hash->{t_regexp} = ".*";
   }
 
-  readingsSingleUpdate($hash, "state", "active", 0);
+  my $doTrigger = ($name !~ m/^$re$/);            # Forum #34516
+  readingsSingleUpdate($hash, "state", "active", $doTrigger);
   $hash->{version} = $module_version;
 
   return undef;
@@ -122,13 +123,23 @@ sub expandJSON_Attr($$) {
   if ($cmd eq "set" && !defined $aVal) {
     $ret = "not empty"
   }
-  elsif ($aName =~ /^addReadingsPrefix$/) {
+
+  elsif ($aName eq "addReadingsPrefix") {
     $cmd eq "set" 
       ? $aVal =~ m/^[01]$/ ? ($hash->{helper}{$aName} = $aVal) : ($ret = "0|1") 
       : delete $hash->{helper}{$aName}
   }
-  elsif ($aName =~ /^do_not_notify$/) {
-    $ret = "0|1" if  $cmd eq "set" && $aVal !~ m/^[01]$/;
+
+  elsif ($aName eq "do_not_notify") {
+    $ret = "0|1" if $cmd eq "set" && $aVal !~ m/^[01]$/;
+  }
+
+  elsif ($aName eq "disable") {
+    if  ($cmd eq "set") {
+      if ($aVal !~ m/^[01]$/) { $ret = "0|1" }
+      else { readingsSingleUpdate($hash, "state", $aVal?"disabled":"active", 1) }
+    }
+    elsif ($cmd eq "del") { readingsSingleUpdate($hash, "state", "active", 1) }
   }
   
   if ($ret) {
@@ -165,9 +176,7 @@ sub expandJSON_Notify($$) {
         ? ("state", $event)
         : split(": ", $event, 2);
 
-      $hash->{STATE} = AttrVal($name,'showtime',1) 
-        ? $dhash->{NTFY_TRIGGERTIME} 
-        : 'active';
+      $hash->{STATE} = $dhash->{NTFY_TRIGGERTIME};
 
       if ($value !~ m/^\s*{.*}\s*$/s) { # eg. state with an invalid json
         Log3 $name, 5, "$type $name: Invalid JSON: $value";
@@ -366,7 +375,6 @@ sub expandJSON_isPmInstalled($$)
 
     <li><a href="#disabledForIntervals">disabledForIntervals</a></li>
     <li><a href="#addStateEvent">addStateEvent</a></li>
-    <li><a href="#showtime">showtime</a></li><br>
   </ul>
 </ul>
 
