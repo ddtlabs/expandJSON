@@ -40,17 +40,22 @@
 # 1.09 removed attr showtime (always on)
 
 #test defines
-# defmod ej dej expandJSON d.*:.*:.{.*}      #all devices starting w/ d
-# defmod ej dej expandJSON d.*:{.*}          #state wo/ attr addStateEvent
-# defmod ej dej expandJSON dej:xxx:.{.*}     #
+# defmod ej dej expandJSON dummy.*:.*:.{.*}      #all devices starting w/ d
+# defmod ej dej expandJSON dummy.*:{.*}          #state wo/ attr addStateEvent
+# defmod ej dej expandJSON dummy.*:.*:.*     #
 
 #test strings
 # { fhem('setreading dej xxx { '.chr(10).chr(9).'"Timestamp" : "2017-03-06 05:26:57" '.chr(10).'} ') }
-# setreading dej xxx { "Timestamp" : "2017-03-06 05:26:57", "Temperature" : { "Value" : 26.600, "Fractional" : 26, "Decimal" : 600 }, "Humidity" : { "Value" : 37.300, "Fractional" : 37, "Decimal" : 300 }, "Light" : { "Value" : 1024 } }
-# setreading dej yyy {"Time":"2017-02-08T20:13:31", "Uptime":0, "POWER":"ON", "Wifi":{"AP":1, "SSID":"xxxxxx", "RSSI":96}}
-# set dej { "Time" : "2017-02-08T20:13:44","Time2":"2017-02-08T20:13:44"}
+# setreading dummy yyy {"Time":"2017-02-08T20:13:31", "Uptime":0, "POWER":"ON", "Wifi":{"AP":1, "SSID":"xxxxxx", "RSSI":96}}
+# set dummy { "Time" : "2017-02-08T20:13:44","Time2":"2017-02-08T20:13:44"}
+#
+# objects
+# setreading dummy json { "Timestamp" : "2017-03-06 05:26:57", "Temperature" : { "Value" : 26.600, "Fractional" : 26, "Decimal" : 600 }, "Humidity" : { "Value" : 37.300, "Fractional" : 37, "Decimal" : 300 }, "Light" : { "Value" : 1024 } }
+#
+# nested array
+# setreading dummy json {	"id": "0001", "type": "donut", "name": "Cake", "ppu": 0.55, "batters": { "batter": [{ "id": "1001", "type": "Regular" },{ "id": "1002", "type": "Chocolate" },{ "id": "1003", "type": "Blueberry" },{ "id": "1004", "type": "Devil's Food" }]}, "topping": [{ "id": "5001", "type": "None" },{ "id": "5002", "type": "Glazed" },{ "id": "5005", "type": "Sugar" },{ "id": "5007", "type": "Powdered Sugar" },{ "id": "5006", "type": "Chocolate with Sprinkles" },{ "id": "5003", "type": "Chocolate" },{ "id": "5004", "type": "Maple" } ] }
 
-my $module_version = 1.09;
+my $module_version = "1.11";
 
 package main;
 
@@ -229,8 +234,14 @@ sub expandJSON_expand($$$$;$$) {
 
   if( ref( $ref ) eq "ARRAY" ) {
     while( my ($key,$value) = each @{ $ref } ) {
-      expandJSON_expand($hash,$dhash,$sPrefix,$value,
-                        $prefix.sprintf("%02i",$key+1)."_");
+      if( ref( $value ) ) {
+        expandJSON_expand($hash,$dhash,$sPrefix,$value,$prefix.sprintf("%02i",$key+1)."_");
+      }
+      else {
+        (my $reading = $sPrefix.$prefix.sprintf("%02i",$key+1)) =~ s/[^A-Za-z\d_\.\-\/]/_/g;
+        readingsBulkUpdate($dhash, $reading, $value) 
+          if $reading =~ m/^$hash->{t_regexp}$/;
+      }
     }
   }
   elsif( ref( $ref ) eq "HASH" ) {
