@@ -208,7 +208,7 @@ sub expandJSON_decode($$$$) {
   my ($name,$type) = ($hash->{NAME},$hash->{TYPE});
   my $dhash = $defs{$dname};
   my $h;
-  eval { $h = decode_json($dvalue); 1; };
+  eval { $h = JSON->new->decode($dvalue); 1; };
   if ( $@ ) {
     Log3 $name, 2, "$type $name: Bad JSON: $dname $dreading: $dvalue";
     Log3 $name, 2, "$type $name: $@";
