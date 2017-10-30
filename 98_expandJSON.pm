@@ -246,7 +246,7 @@ sub expandJSON_expand($$$$;$$) {
   }
   elsif( ref( $ref ) eq "HASH" ) {
     while( my ($key,$value) = each %{ $ref } ) {
-      if( ref( $value ) ) {
+      if( ref( $value ) eq "HASH" or ref ( $value ) eq "ARRAY" ) {
         expandJSON_expand($hash,$dhash,$sPrefix,$value,$prefix.$key.$suffix."_");
       }
       else {
