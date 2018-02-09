@@ -1,4 +1,4 @@
-# $Id$
+# $Id: 98_expandJSON.pm 12345 2018-02-08 08:20:45Z dev0 $
 ################################################################################
 #
 #  Copyright (c) 2017 dev0
@@ -22,46 +22,14 @@
 #
 ################################################################################
 
-# release change log:
-# ------------------------------------------------------------------------------
-# 1.0  initial release
-# 1.01 typo fixed
-# 1.02 added traget reading regexp
-# 1.03 fixed command ref
-# 1.04 minor internal changes
-#      added attr do_not_notify
-#      fixed bug in $event split
-# 1.05 removed debug log
-# 1.06 fixed state handling
-#      added multi line JSON handling (pretty, indent, spaces)
-#      add logging (verbose 5)
-# 1.07 some notifyFN optimizations 
-# 1.08 fixed type in line 172
-# 1.09 removed attr showtime (always on)
-
-#test defines
-# defmod ej dej expandJSON dummy.*:.*:.{.*}      #all devices starting w/ d
-# defmod ej dej expandJSON dummy.*:{.*}          #state wo/ attr addStateEvent
-# defmod ej dej expandJSON dummy.*:.*:.*     #
-
-#test strings
-# { fhem('setreading dej xxx { '.chr(10).chr(9).'"Timestamp" : "2017-03-06 05:26:57" '.chr(10).'} ') }
-# setreading dummy yyy {"Time":"2017-02-08T20:13:31", "Uptime":0, "POWER":"ON", "Wifi":{"AP":1, "SSID":"xxxxxx", "RSSI":96}}
-# set dummy { "Time" : "2017-02-08T20:13:44","Time2":"2017-02-08T20:13:44"}
-#
-# objects
-# setreading dummy json { "Timestamp" : "2017-03-06 05:26:57", "Temperature" : { "Value" : 26.600, "Fractional" : 26, "Decimal" : 600 }, "Humidity" : { "Value" : 37.300, "Fractional" : 37, "Decimal" : 300 }, "Light" : { "Value" : 1024 } }
-#
-# nested array
-# setreading dummy json {	"id": "0001", "type": "donut", "name": "Cake", "ppu": 0.55, "batters": { "batter": [{ "id": "1001", "type": "Regular" },{ "id": "1002", "type": "Chocolate" },{ "id": "1003", "type": "Blueberry" },{ "id": "1004", "type": "Devil's Food" }]}, "topping": [{ "id": "5001", "type": "None" },{ "id": "5002", "type": "Glazed" },{ "id": "5005", "type": "Sugar" },{ "id": "5007", "type": "Powdered Sugar" },{ "id": "5006", "type": "Chocolate with Sprinkles" },{ "id": "5003", "type": "Chocolate" },{ "id": "5004", "type": "Maple" } ] }
-
-my $module_version = "1.11";
+my $module_version = "1.12_github_w_array";
 
 package main;
 
 use strict;
 use warnings;
 use POSIX;
+use Encode;
 
 sub expandJSON_expand($$$$;$$);  # Forum #66761
 
@@ -208,7 +176,7 @@ sub expandJSON_decode($$$$) {
   my ($name,$type) = ($hash->{NAME},$hash->{TYPE});
   my $dhash = $defs{$dname};
   my $h;
-  eval { $h = decode_json($dvalue); 1; };
+  eval { $h = decode_json(encode_utf8($dvalue)); 1; };
   if ( $@ ) {
     Log3 $name, 2, "$type $name: Bad JSON: $dname $dreading: $dvalue";
     Log3 $name, 2, "$type $name: $@";
@@ -256,6 +224,12 @@ sub expandJSON_expand($$$$;$$) {
           if $reading =~ m/^$hash->{t_regexp}$/;
       }
     }
+  }
+  elsif( ref( $ref ) eq "JSON::PP::Boolean" ) { # Forum #82734
+    (my $reading = $sPrefix.$prefix) =~ s/[^A-Za-z\d_\.\-\/]/_/g;
+    $reading = substr($reading, 0, -1); #remove tailing _
+    readingsBulkUpdate($dhash, $reading, $ref ? 1 : 0) 
+      if $reading =~ m/^$hash->{t_regexp}$/;
   }
 }
 
