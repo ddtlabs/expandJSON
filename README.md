@@ -1,5 +1,5 @@
 
-<h3>expandJSON v1.11</h3>
+<h3>expandJSON v1.12 (w/ experimental array decoding</h3>
 
 <ul>
   <p>Expand a JSON string from a reading into individual readings</p>
